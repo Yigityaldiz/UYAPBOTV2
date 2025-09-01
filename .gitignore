@@ -1,0 +1,34 @@
+# İşletim Sistemi dosyaları (macOS, Windows)
+# Bu dosyalar projenin bir parçası değildir ve paylaşılmamalıdır.
+.DS_Store
+Thumbs.db
+
+# Bağımlılıklar
+# Bu devasa klasör 'npm install' komutuyla herkes tarafından yeniden oluşturulabilir.
+# Asla Git'e gönderilmez.
+/node_modules
+
+# Gizli Bilgiler ve Ortam Değişkenleri
+# API Anahtarlarımızı ve şifrelerimizi içerir. KESİNLİKLE GİZLİ KALMALI.
+.env
+
+# Otomasyonun Ürettiği Dosyalar ve Raporlar
+# Bu dosyalar script her çalıştığında yeniden üretilir.
+/downloads/
+/playwright-report/
+/test-results/
+/test-outputs/
+
+# Build Çıktısı
+# TypeScript kodlarımızın derlenmiş JavaScript hallerini içerir.
+/dist/
+
+# Log Dosyaları
+# Programın çalışırken oluşturabileceği log kayıtları.
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# Editör Ayarları (İsteğe bağlı ama önerilir)
+# Herkesin kendi editör ayarlarını koruması için.
+.vscode/
