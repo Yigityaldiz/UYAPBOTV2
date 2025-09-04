@@ -15,7 +15,7 @@ Aşağıdaki metin, bir UYAP tebligatına aittir. Bu metinden aşağıdaki bilgi
 - sonTarih (Eğer bir süre belirtilmişse, örn: "1 Hafta", "2 Hafta", "15 Gün")
 - durusmaTarihi (Eğer bir duruşma tarihi varsa, "gg.aa.yyyy" formatında)
 
-Eğer bir bilgiyi bulamazsan, değerini "yok" olarak belirt. Cevabın sadece ve sadece JSON objesi olsun, başka hiçbir açıklama ekleme.
+Eğer bir bilgiyi bulamazsan, değerini "yok" olarak belirt. Cevabın sadece ve sadece JSON objesi olsun, başka hiçbir metin veya formatlama ekleme.
 
 # METİN:
 ${pdfText}
@@ -27,9 +27,15 @@ ${pdfText}
         "Sen, hukuki belgelerden yapılandırılmış JSON verisi çıkaran bir yapay zeka asistanısın.",
       temperature: 0.0,
     });
-    console.log("--- PDF ANALİZ SONUCU ---");
+    console.log("--- PDF ANALİZ SONUCU (HAM)---");
     console.log(response);
-    return JSON.parse(response);
+
+    // AI'ın cevabının başındaki ve sonundaki ```json ve ``` kısımlarını temizliyoruz.
+    const cleanResponse = response
+      .replace(/^```json\s*/, "")
+      .replace(/\s*```$/, "");
+
+    return JSON.parse(cleanResponse); // Artık temizlenmiş cevabı parse ediyoruz.
   } catch (error) {
     console.error("PDF analizi sırasında yapay zeka hatası oluştu:", error);
     return null;
