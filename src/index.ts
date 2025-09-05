@@ -1,14 +1,18 @@
 import { runAutomation } from "./core/automation";
 import { analyzePdfTextWithAI } from "./core/ai";
-import { getLatestReadTebligatlar, UetsMail } from "./services/emailService"; // getLatestReadTebligatlar'ı import ediyoruz
+import { getLatestReadTebligatlar } from "./services/emailService"; // getLatestReadTebligatlar'ı import ediyoruz
+import connectDb from "./config/database";
+
 import fs from "fs";
-import path from "path";
+
 import pdf from "pdf-parse";
 
 async function main() {
   console.log("Uygulama başlatılıyor: En son okunan 3 tebligat işlenecek...");
 
   // 1. En son okunan 3 tebligat e-postasını bul
+
+  await connectDb();
   const tebligatlarToProcess = await getLatestReadTebligatlar(3);
 
   if (!tebligatlarToProcess || tebligatlarToProcess.length === 0) {

@@ -1,62 +1,24 @@
 import cron from "node-cron";
-import {
-  findOldestUnprocessedTebligatlar,
-  markEmailAsProcessed,
-  UetsMail,
-} from "../services/emailService";
-import { runAutomation } from "../core/automation";
-import { analyzePdfTextWithAI } from "../core/ai";
-import fs from "fs";
-import pdf from "pdf-parse";
+import { findOldestUnprocessedTebligatlar } from "../services/emailService";
+import { processSingleTebligat } from "../core/TebligatProcessor"; // <-- Yeni işlemcimizi import ediyoruz
 
-async function processSingleTebligat(tebligat: UetsMail) {
-  if (!tebligat.barcode) {
-    console.error(
-      `UID ${tebligat.uid} olan e-postada barkod bulunamadı, atlanıyor.`
-    );
-    await markEmailAsProcessed(tebligat.uid);
-    return;
-  }
-
-  try {
-    console.log(`İşlem başlıyor: Barkod ${tebligat.barcode}`);
-    const downloadedPdfPath = await runAutomation(tebligat.barcode);
-
-    if (downloadedPdfPath && fs.existsSync(downloadedPdfPath)) {
-      console.log("PDF indirildi, AI analizi başlıyor...");
-      const dataBuffer = fs.readFileSync(downloadedPdfPath);
-      const data = await pdf(dataBuffer);
-      const analysisResult = await analyzePdfTextWithAI(data.text);
-
-      if (analysisResult) {
-        console.log("✅ Analiz başarıyla tamamlandı.");
-        // SONRAKİ ADIM: Bu sonucu (analysisResult) veritabanına kaydetmek.
-        await markEmailAsProcessed(tebligat.uid);
-      } else {
-        console.error("❌ AI analizi başarısız oldu.");
-      }
-    } else {
-      console.error("❌ Otomasyon başarısız oldu veya PDF indirilemedi.");
-    }
-  } catch (error) {
-    console.error(
-      `Barkod ${tebligat.barcode} işlenirken bir hata oluştu:`,
-      error
-    );
-  }
-}
-
+/**
+ * Bu ana fonksiyon, her gün belirli bir saatte çalışarak yeni tebligatları bulur
+ * ve işlenmesi için tebligatProcessor'a gönderir.
+ */
 export function startTebligatListener() {
   console.log("Tebligat Dinleyici Kuruldu.");
 
-  // Her gün sabah 9'da çalışır ('0 9 * * *').
+  // Canlı kullanım: Her gün sabah 9'da çalışır ('0 9 * * *')
+  // Test için: Her 2 dakikada bir çalıştırmak için '*/2 * * * *'
   cron.schedule(
-    "0 9 * * *",
+    "*/2 * * * *",
     async () => {
       console.log(
         `\n--- GÜNLÜK TEBLİGAT KONTROLÜ BAŞLATILDI: ${new Date().toLocaleString()} ---`
       );
 
+      // Sadece 'okunmamış' en eski 3 tebligatı bul
       const tebligatlarToProcess = await findOldestUnprocessedTebligatlar(3);
 
       if (tebligatlarToProcess.length === 0) {
@@ -68,6 +30,7 @@ export function startTebligatListener() {
         `İşlenmek üzere ${tebligatlarToProcess.length} adet tebligat bulundu.`
       );
 
+      // Her bir tebligatı işlenmesi için işlemciye gönder
       for (const tebligat of tebligatlarToProcess) {
         await processSingleTebligat(tebligat);
       }
