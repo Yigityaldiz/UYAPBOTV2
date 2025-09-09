@@ -21,6 +21,7 @@ const config = {
     port: parseInt(process.env.IMAP_PORT || "993", 10),
     tls: true,
     tlsOptions: { rejectUnauthorized: false },
+    connTimeout: 10000,
   },
 };
 

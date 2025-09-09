@@ -1,6 +1,7 @@
 import { UetsMail, markEmailAsProcessed } from "../services/emailService";
 import { runAutomation } from "./automation";
 import { analyzePdfTextWithAI } from "./ai";
+import { calculateDeadline } from "./rulesEngine";
 import fs from "fs";
 import pdf from "pdf-parse";
 import Tebligat from "../models/Tebligat";
@@ -13,58 +14,71 @@ export async function processSingleTebligat(tebligat: UetsMail) {
     console.error(
       `UID ${tebligat.uid} olan e-postada barkod bulunamadı, atlanıyor.`
     );
-    // Barkodsuz e-postayı da okundu olarak işaretleyelim ki bir daha karşımıza çıkmasın.
     await markEmailAsProcessed(tebligat.uid);
     return;
   }
 
   try {
-    console.log(`İşlem başlıyor: Barkod ${tebligat.barcode}`);
-    // 1. Otomasyonu çalıştır ve PDF dosyasının yolunu al
+    console.log(`\n--- İŞLEM ${tebligat.barcode} ---`);
     const downloadedPdfPath = await runAutomation(tebligat.barcode);
 
     if (downloadedPdfPath && fs.existsSync(downloadedPdfPath)) {
-      console.log("PDF indirildi, AI analizi başlıyor...");
-
-      // 2. İndirilen PDF'i oku
       const dataBuffer = fs.readFileSync(downloadedPdfPath);
       const data = await pdf(dataBuffer);
+      let analysisResult = await analyzePdfTextWithAI(data.text);
 
-      // 3. AI ile analiz et
-      const analysisResult = await analyzePdfTextWithAI(data.text);
+      if (analysisResult && analysisResult.tebligKonusu) {
+        console.log("✅ Analiz başarıyla tamamlandı.");
 
-      if (analysisResult) {
-        console.log(
-          "✅ Analiz başarıyla tamamlandı. Veritabanına kaydediliyor..."
+        // --- KURAL MOTORU ADIMI ---
+        console.log("\n--- KURAL MOTORU GİRDİSİ ---");
+        console.log("AI'dan gelen tebligKonusu:", analysisResult.tebligKonusu);
+
+        const serviceDate = new Date();
+        const calculatedDeadline = calculateDeadline(
+          analysisResult,
+          serviceDate
         );
 
-        // 4. Sonucu veritabanına kaydet
-        const newTebligatRecord = new Tebligat({
-          barcode: tebligat.barcode,
-          pdfPath: downloadedPdfPath,
-          analysisResult: analysisResult,
-        });
-        await newTebligatRecord.save();
-        console.log(
-          `✅ Barkod ${tebligat.barcode} başarıyla veritabanına kaydedildi.`
-        );
+        if (calculatedDeadline) {
+          const deadlineString = calculatedDeadline.toLocaleDateString("tr-TR");
+          console.log(`Hesaplanan son tarih: ${deadlineString}`);
+          analysisResult.sonTarih = deadlineString;
+        }
+        console.log("----------------------------\n");
+        // --- KURAL MOTORU BİTTİ ---
 
-        // 5. Her şey başarılıysa, e-postayı 'okundu' olarak işaretle.
-        await markEmailAsProcessed(tebligat.uid);
+        try {
+          console.log("Veritabanına kayıt işlemi deneniyor...");
+          const newTebligatRecord = new Tebligat({
+            barcode: tebligat.barcode,
+            pdfPath: downloadedPdfPath,
+            analysisResult: analysisResult,
+          });
+          await newTebligatRecord.save();
+          console.log(
+            `✅ Barkod ${tebligat.barcode} başarıyla veritabanına kaydedildi.`
+          );
+
+          await markEmailAsProcessed(tebligat.uid);
+        } catch (dbError) {
+          console.error("!!! VERİTABANINA KAYIT SIRASINDA HATA YAKALANDI !!!");
+          console.error(dbError);
+        }
       } else {
         console.error(
-          "❌ AI analizi başarısız oldu. E-posta şimdilik 'okunmadı' olarak bırakılıyor."
+          "❌ AI analizi başarısız oldu veya 'tebligKonusu' bulunamadı."
         );
       }
     } else {
-      console.error(
-        "❌ Otomasyon başarısız oldu veya PDF indirilemedi. E-posta 'okunmadı' olarak bırakılıyor."
-      );
+      console.error("❌ Otomasyon başarısız oldu veya PDF indirilemedi.");
     }
   } catch (error) {
     console.error(
       `Barkod ${tebligat.barcode} işlenirken bir hata oluştu:`,
       error
     );
+  } finally {
+    console.log(`--- İŞLEM TAMAMLANDI: Barkod ${tebligat.barcode} ---\n`);
   }
 }
