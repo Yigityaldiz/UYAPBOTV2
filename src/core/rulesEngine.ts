@@ -14,25 +14,34 @@ export function calculateDeadline(
   analysisResult: AnalysisResult,
   serviceDate: Date
 ): Date | null {
-  const konu = analysisResult.tebligKonusu.toLowerCase();
+  // Türkçe karakterler ve büyük/küçük harf farkları nedeniyle
+  // esnek bir eşleşme için normalize ediyoruz.
+  const normalize = (s: string) =>
+    (s || "")
+      .toLocaleLowerCase("tr-TR")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // diakritikleri sil
+      .replace(/ı/g, "i"); // dotless i -> i
+
+  const konu = normalize(analysisResult.tebligKonusu);
   let deadline: Date | null = null;
 
   // Kural 1 & 2: Bilirkişi Raporu veya İstinaf için 2 hafta
-  if (konu.includes("bilirkişi raporu") || konu.includes("istinaf")) {
+  if (konu.includes("bilirkisi") || konu.includes("istinaf")) {
     const newDate = new Date(serviceDate);
     newDate.setDate(newDate.getDate() + 14); // 2 hafta = 14 gün
     deadline = newDate;
     console.log("Kural uygulandı: Bilirkişi/İstinaf -> 14 gün eklendi.");
   }
   // Kural 3: Muhtıra için 1 hafta
-  else if (konu.includes("muhtıra")) {
+  else if (konu.includes("muhtira")) {
     const newDate = new Date(serviceDate);
     newDate.setDate(newDate.getDate() + 7); // 1 hafta = 7 gün
     deadline = newDate;
     console.log("Kural uygulandı: Muhtıra -> 7 gün eklendi.");
   }
   // Kural 4: Yargıtay Kararı için 1 ay
-  else if (konu.includes("yargıtay kararı")) {
+  else if (konu.includes("yargitay karari") || konu.includes("yargitay")) {
     const newDate = new Date(serviceDate);
     newDate.setMonth(newDate.getMonth() + 1); // 1 ay
     deadline = newDate;
@@ -42,5 +51,11 @@ export function calculateDeadline(
   // Eğer AI metinden bir tarih bulduysa, onu da değerlendirebiliriz
   // Ama şimdilik öncelik bizim kurallarımızda.
 
+  if (!deadline) {
+    console.log(
+      "Kural bulunamadı. Konu (normalize):",
+      konu || "(boş)"
+    );
+  }
   return deadline;
 }

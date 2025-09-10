@@ -19,7 +19,10 @@ export async function processSingleTebligat(tebligat: UetsMail) {
   }
 
   try {
-    console.log(`\n--- İŞLEM ${tebligat.barcode} ---`);
+    console.log("yeni istem asfjkasfjs");
+    console.log(
+      `\n--- ashfjkgasfjkgasjkfgjkasfgjkasfgsİŞLEM ${tebligat.barcode} ---`
+    );
     const downloadedPdfPath = await runAutomation(tebligat.barcode);
 
     if (downloadedPdfPath && fs.existsSync(downloadedPdfPath)) {

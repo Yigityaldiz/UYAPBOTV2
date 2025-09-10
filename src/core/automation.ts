@@ -8,6 +8,7 @@ import path from "path";
 
 export async function runAutomation(barkodNumarasi: string) {
   console.log(`Otomasyon motoru ${barkodNumarasi} barkodu için başlatıldı...`);
+  console.log("automation.ts YENİDEN YÜKLENDİ:", new Date().toISOString());
   const browser = await chromium.launch({ headless: false });
   const page = await browser.newPage();
 
@@ -71,44 +72,80 @@ export async function runAutomation(barkodNumarasi: string) {
     await page.getByRole("link", { name: "Tebligatlarım" }).click();
     await page.locator("mat-table").waitFor();
 
-    // ... (Yapay zeka ile arama, tıklama ve PDF indirme mantığı burada devam ediyor)
-    const allRows = await page.locator("mat-row").all();
-    const allRowTexts: string[] = [];
-    for (const row of allRows) {
-      const text = await row.textContent();
-      if (text) allRowTexts.push(text.trim().replace(/\s+/g, " "));
+    // Sayfalar arasında dolaşarak AI ile hedef barkodu arayalım
+    let foundOnPage = false;
+    for (let pageIndex = 1; pageIndex <= 50; pageIndex++) {
+      // Güvenlik için üst limit: 50 sayfa
+      console.log(`\n[Sayfa ${pageIndex}] Tebligat listesi okunuyor...`);
+
+      const rowsLocator = page.locator("mat-row");
+      await rowsLocator.first().waitFor({ state: "visible" });
+
+      const rowCount = await rowsLocator.count();
+      const allRowTexts: string[] = [];
+      for (let i = 0; i < rowCount; i++) {
+        const text = await rowsLocator
+          .nth(i)
+          .textContent({ timeout: 5000 })
+          .catch(() => null);
+        if (text) allRowTexts.push(text.trim().replace(/\s+/g, " "));
+      }
+
+      const targetRowNumber = await findRowNumberWithAI(
+        allRowTexts,
+        barkodNumarasi
+      );
+
+      if (targetRowNumber > 0) {
+        console.log(
+          `✅ Hedef barkod bu sayfada bulundu. Satır: ${targetRowNumber}`
+        );
+        const hedefSatir = rowsLocator.nth(targetRowNumber - 1);
+        await hedefSatir.getByText("Görüntüle").click();
+
+        console.log("Detay sayfasındayız. PDF indiriliyor...");
+        const downloadPromise = page.waitForEvent("download");
+        await page.getByRole("button", { name: /\.pdf/i }).first().click();
+        const download = await downloadPromise;
+
+        const newFilename = `${barkodNumarasi}.pdf`;
+        const filePath = path.join(
+          __dirname,
+          "..",
+          "..",
+          "downloads",
+          newFilename
+        );
+        await download.saveAs(filePath);
+        console.log(`✅ PDF Başarıyla İndirildi: ${filePath}`);
+        return filePath;
+      }
+
+      // Bu sayfada yoksa bir sonraki sayfaya geçmeyi dene
+      const nextButton = page.getByRole("button", { name: "Sonraki Sayfa" });
+      const nextExists = (await nextButton.count()) > 0;
+      const nextDisabled = nextExists ? await nextButton.isDisabled() : true;
+
+      if (!nextExists || nextDisabled) {
+        console.log(
+          "🔚 Son sayfaya gelindi veya 'Sonraki Sayfa' butonu devre dışı."
+        );
+        break;
+      }
+
+      console.log("➡️  Sonraki sayfaya geçiliyor...");
+      await Promise.all([
+        nextButton.click(),
+        page.waitForLoadState("networkidle").catch(() => {}),
+      ]);
+      // İçerik güncellenmesini beklemek için kısa gecikme
+      await page.waitForTimeout(800);
     }
-    const targetRowNumber = await findRowNumberWithAI(
-      allRowTexts,
-      barkodNumarasi
+
+    console.error(
+      `Yapay zeka, listelenen sayfalar içinde "${barkodNumarasi}" barkodlu tebligatı bulamadı.`
     );
-
-    if (targetRowNumber > 0) {
-      const hedefSatir = allRows[targetRowNumber - 1];
-      await hedefSatir.getByText("Görüntüle").click();
-
-      console.log("Detay sayfasındayız. PDF indiriliyor...");
-      const downloadPromise = page.waitForEvent("download");
-      await page.getByRole("button", { name: /\.pdf/i }).first().click();
-      const download = await downloadPromise;
-
-      const newFilename = `${barkodNumarasi}.pdf`;
-      const filePath = path.join(
-        __dirname,
-        "..",
-        "..",
-        "downloads",
-        newFilename
-      );
-      await download.saveAs(filePath);
-      console.log(`✅ PDF Başarıyla İndirildi: ${filePath}`);
-      return filePath;
-    } else {
-      console.error(
-        `Yapay zeka, "${barkodNumarasi}" içeren tebligatı bulamadı.`
-      );
-      return null;
-    }
+    return null;
   } catch (error) {
     console.error("Otomasyon sırasında bir hata oluştu:", error);
     return null;

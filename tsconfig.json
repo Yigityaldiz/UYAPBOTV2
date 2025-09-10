@@ -3,7 +3,7 @@
     "target": "es2016",
     "module": "commonjs",
     "moduleResolution": "node",
-    "resolveJsonModule": true, // <-- EKLENEN YENİ SATIR
+    "resolveJsonModule": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "strict": true,
